@@ -29,45 +29,114 @@ Horizontal positions:
 The bridge connects the towers at x = 552 m and is split into two elements via a midpoint node. Two diagonal members connect the lower tower nodes (x = 368 m) to this midpoint.
 
 ### Variable tower stiffness
-The tower stiffness varies with height:
 
-EI(x) = 4000 · exp(−x / 828)   [GN·m²]  
-EA(x) = 13 · exp(−x / 828)     [GN]  
+The tower stiffness decreases exponentially with height:
 
-These are converted for consistent units:
+$$
+EA(x)=13e^{-x/828}
+\qquad [\text{GN}]
+$$
 
-- EI → kN·m²  
-- EA → kN  
+$$
+EI(x)=4000e^{-x/828}
+\qquad [\text{GNm}^2]
+$$
 
-### Discretization of towers
-Because stiffness varies continuously, each tower is divided into many small elements.
+The properties are converted to consistent units:
 
-The tower is split into three segments:
-1. base → lower node  
-2. lower node → bridge node  
-3. bridge node → top  
+$$
+1 \ \text{GN}=10^6 \ \text{kN}
+$$
 
-Each segment is discretized into:
+$$
+1 \ \text{GNm}^2=10^6 \ \text{kNm}^2
+$$
 
-n = 100 sub-elements  
+resulting in:
 
-So per tower:
-- 3 × 100 = 300 elements  
-- total (both towers) = 600 elements  
+$$
+EA(0)=13\times10^6 \ \text{kN}
+$$
 
-For each sub-element, stiffness is evaluated at the midpoint:
+$$
+EI(0)=4000\times10^6 \ \text{kNm}^2
+$$
 
-x_mid = (x₁ + x₂) / 2  
+Since the tower stiffness varies continuously, a custom element stiffness matrix was implemented for the tower elements.
 
-and assigned as constant:
+The axial contribution is obtained from:
 
-    xmid = 0.5 * (xa + xb)
-    e.set_section({
-        'EI': EI_tower(xmid),
-        'EA': EA_tower(xmid)
-    })
+$$
+K_a=
+\int_0^L
+EA(x_a+s)
+B_a^TB_a
+\,ds
+$$
 
-This results in a piecewise-constant approximation of the continuous stiffness variation.
+where
+
+$$
+B_a=
+\begin{bmatrix}
+-\frac{1}{L} & 0 & 0 &
+\frac{1}{L} & 0 & 0
+\end{bmatrix}
+$$
+
+The required integral is:
+
+$$
+A_0=
+\int_0^L
+EA(x_a+s)\,ds
+$$
+
+The bending contribution is:
+
+$$
+K_b=
+\int_0^L
+EI(x_a+s)
+B_b^TB_b
+\,ds
+$$
+
+The curvature-displacement matrix is written as:
+
+$$
+B_b=c_0+c_1s
+$$
+
+which leads to three analytical integrals:
+
+$$
+B_0=
+\int_0^L EI(x_a+s)\,ds
+$$
+
+$$
+B_1=
+\int_0^L EI(x_a+s)s\,ds
+$$
+
+$$
+B_2=
+\int_0^L EI(x_a+s)s^2\,ds
+$$
+
+The complete tower stiffness matrix is then:
+
+$$
+K_{tower}=K_a+K_b
+$$
+
+This stiffness matrix is evaluated using exact closed-form expressions implemented in the functions:
+
+```python
+exp_integrals(...)
+tower_stiffness_closed_form(...)
+```
 
 ---
 
@@ -118,7 +187,7 @@ Nodes are values with the blue dots, elements are values in the squares, and if 
 
 <div style="text-align: center;">
   <div style="background-color: white; display: inline-block; padding: 10px;">
-    <img src="node and elements.png" width="500">
+    <img src="nodes_loc.png" width="500">
   </div>
 </div>
 
@@ -127,17 +196,17 @@ Nodes are values with the blue dots, elements are values in the squares, and if 
 <br>
 <br>
     
-| Node | ux [m] | uy [m] | rz [rad] |
-|:-----|:-------|:-------|:---------|
-| 0 | 0.000000 | 0.000000 | 0.000000 |
-| 1 | 0.682678 | 0.592339 | -0.004514 |
-| 2 | 1.416309 | 0.787373 | -0.003096 |
-| 3 | 3.757605 | 0.915317 | -0.011412 |
-| 4 | 0.000000 | 0.000000 | 0.000000 |
-| 5 | 1.348573 | 0.841131 | -0.000569 |
-| 6 | 1.422150 | 1.100582 | -0.002223 |
-| 7 | 3.894262 | 1.228526 | -0.012619 |
-| 8 | 1.414733 | 0.944089 | -0.001822 |
+| Node | x [m] | z [m] | u_x [m] | u_z [m] | φ [rad] |
+|------|------:|------:|--------:|--------:|---------:|
+| 0 | 0.0 | 0.0 | 0.000000 | 0.000000 | 0.000000 |
+| 1 | 368.0 | 0.0 | -0.714289 | 0.420675 | -0.000421 |
+| 2 | 552.0 | 0.0 | -0.971975 | 0.686968 | 0.002197 |
+| 3 | 828.0 | 0.0 | -1.106183 | 3.148790 | 0.012595 |
+| 4 | 0.0 | 150.0 | 0.000000 | 0.000000 | 0.000000 |
+| 5 | 368.0 | 150.0 | -0.714868 | 0.864697 | 0.001216 |
+| 6 | 552.0 | 150.0 | -0.931098 | 0.695732 | -0.000360 |
+| 7 | 828.0 | 150.0 | -1.065306 | 2.080504 | 0.007958 |
+| 8 | 552.0 | 75.0 | -0.890527 | 0.686946 | -0.000176 |
 
 
 
@@ -151,7 +220,7 @@ And the uy is positive downwards!
 
 <div style="text-align: center;">
   <div style="background-color: white; display: inline-block; padding: 10px;">
-    <img src="displacement.png" width="300">
+    <img src="node_displacement.png" width="300">
   </div>
 </div>
 
@@ -160,32 +229,41 @@ And the uy is positive downwards!
 
 <div style="text-align: center;">
   <div style="background-color: white; display: inline-block; padding: 10px;">
-    <img src="normalforce.png" width="500">
+    <img src="normalforcess.png" width="500">
   </div>
 </div>
 <br>
 Normal force values shown in the plot:<br>
 
-Bridge members:<br>
-bridge left    :  -273.26 kN<br>
-bridge right   :  1285.63 kN<br>
-diag left      : 39389.57 kN<br>
-diag right     :  4604.02 kN<br>
-<br>
-Tower elements (discretized) (bottom / top):<br>
-left tower: base -> low       : bottom = 20570.02 kN | top = 13210.02 kN<br>
-left tower: low -> bridge     : bottom =  9797.91 kN | top =  6117.91 kN<br>
-left tower: bridge -> top     : bottom =  5520.00 kN | top =     0.00 kN<br>
-right tower: base -> low      : bottom = 27549.98 kN | top = 20189.98 kN<br>
-right tower: low -> bridge    : bottom = 12403.82 kN | top =  8723.82 kN<br>
-right tower: bridge -> top    : bottom =  5520.00 kN | top =     0.00 kN<br><br>
+| Node | Connected to Node | Element | Normal Force N [kN] |
+|------|------------------:|--------:|--------------------:|
+| 0 | 1 | 1 | 24051.74 (outer end)|
+| 1 | 0 | 1 | 16691.74 |
+| 1 | 2 | 2 | 12307.30 |
+| 1 | 8 | 9 | 4101.87 |
+| 2 | 1 | 2 | 8627.30 |
+| 2 | 3 | 3 | 5520.00 |
+| 2 | 8 | 7 | 3.86 |
+| 3 | 2 | 3 | 0.00 (outer end)|
+| 4 | 5 | 4 | 24068.26 (outer end)|
+| 5 | 4 | 4 | 16708.26 |
+| 5 | 6 | 5 | 10623.33 |
+| 5 | 8 | 10 | 6252.84 |
+| 6 | 5 | 5 | 6943.33 |
+| 6 | 7 | 6 | 5520.00 |
+| 6 | 8 | 8 | -1522.85 |
+| 7 | 6 | 6 | -0.00 (outer end)|
+| 8 | 1 | 9 | 4101.87 |
+| 8 | 2 | 7 | 3.86 |
+| 8 | 5 | 10 | 6252.84 |
+| 8 | 6 | 8 | -1522.85 |
 
 
 ## 4. Provide a figure of a free body diagram of the full structure in which you show all the forces working on the structure (including support reactions) with numerical values from your code. This specific figure can be hand drawn.
 
 <div style="text-align: center;">
   <div style="background-color: white; display: inline-block; padding: 10px;">
-    <img src="supportR.png" width="600">
+    <img src="global.png" width="600">
   </div>
 </div>
 
@@ -193,6 +271,6 @@ right tower: bridge -> top    : bottom =  5520.00 kN | top =     0.00 kN<br><br>
 
 <div style="text-align: center;">
   <div style="background-color: white; display: inline-block; padding: 10px;">
-    <img src="freebody.png" width="600">
+    <img src="local.png" width="600">
   </div>
 </div>
